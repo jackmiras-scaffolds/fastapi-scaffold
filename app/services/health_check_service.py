@@ -1,23 +1,39 @@
-class HealthCheckService:
-    async def is_live(self):
-        # TODO: [Thu Mar 31 18:03:30 2022] API call to the other app
-        return False
+from configs import aws
+from configs.cache import cache
+from configs.env import env
+from psycopg.pq import PGconn, Ping
 
-    async def is_ready(self):
-        return (
-            await self.is_cache_connection_ok()
-            and await self.is_database_connection_ok()
-            and await self.is_azure_storage_service_ok()
-        )
+
+class HealthCheckService:
+    async def health_data(self):
+        return {
+            "is_cache_connection_ok": await self.is_cache_connection_ok(),
+            "is_database_connection_ok": await self.is_database_connection_ok(),
+            "is_file_storage_ok": await self.is_file_storage_ok(),
+            "is_secret_manager_ok": await self.is_scret_manager_ok(),
+        }
 
     async def is_cache_connection_ok(self):
-        # TODO: [Thu Mar 31 10:07:14 2022] Run a search against the Cache
-        return True
+        return cache.ping()
 
     async def is_database_connection_ok(self):
-        # TODO: [Thu Mar 31 10:06:57 2022] Run a query against the DB
-        return True
+        dsn = (
+            "postgresql://"
+            + env("DB_USERNAME", "postgres")
+            + ":"
+            + env("DB_PASSWORD", "")
+            + "@"
+            + env("DB_HOST", "localhost")
+            + "/"
+            + env("DB_DATABASE")
+        )
 
-    async def is_azure_storage_service_ok(self):
-        # TODO: [Thu Mar 31 10:07:30 2022] Retrieve a dummy file from storage
-        return True
+        status = PGconn.ping(conninfo=dsn.encode())
+
+        return status == Ping.OK
+
+    async def is_file_storage_ok(self):
+        return aws.s3.buckets.all() is not None
+
+    async def is_scret_manager_ok(self):
+        return aws.secrets_manager.list_secrets() is not None

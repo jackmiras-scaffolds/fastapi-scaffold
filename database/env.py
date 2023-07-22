@@ -1,9 +1,8 @@
 from logging.config import fileConfig
 
 from alembic import context
+from configs import database
 from sqlalchemy import engine_from_config, pool
-
-from configs.env import env
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -57,22 +56,13 @@ def run_migrations_online():
 
     """
 
-    db_uri = (
-        "postgresql://"
-        + env("DB_USERNAME")
-        + ":"
-        + env("DB_PASSWORD")
-        + "@"
-        + env("DB_HOST")
-        + "/"
-        + env("DB_DATABASE")
-    )
-
     config_section = config.get_section(config.config_ini_section)
-    config_section["sqlalchemy.url"] = db_uri
+    config_section["sqlalchemy.url"] = database.dsn
 
     connectable = engine_from_config(
-        config_section, prefix="sqlalchemy.", poolclass=pool.NullPool,
+        config_section,
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:

@@ -331,6 +331,10 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
+# FastAPI stuff:
+*/database.sqlite-shm
+*/database.sqlite-wal
+
 # Scrapy stuff:
 .scrapy
 

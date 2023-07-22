@@ -1,70 +1,80 @@
-import base64
 import json
 import os
+from base64 import b64decode
 
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
-from fastapi.logger import logger
+from botocore.exceptions import (ClientError, NoCredentialsError,
+                                 ParamValidationError)
+
+from configs import aws
+from configs.logging import logger
+
+"""
+Retrieves the value of an env variable from a remote source or a .env file.
+
+:type key: str
+:type default_value: str
+:return: str
+"""
 
 
-def env(env_name: str, default_value: str = ""):
-    value = get_env(env_name, default_value)
+def env(key: str, default_value: str = ""):
+    value = get_env(key, default_value)
 
-    if value == "True" or value == "true":
+    if value.lower() == "true":
         return True
-    if value == "False" or value == "false":
+    if value.lower() == "false":
         return False
+    if value.lower() == "none":
+        return None
 
     return value
 
 
-def get_env(env_name: str, default_value: str = "") -> str:
-    value = remote_environemnt_variables(env_name)
+"""
+Retrieves env variable from .env and AWS Secrets Manager, giving precedence to
+remote value. If both sources exist, the remote value is returned; otherwise,
+.env value or default_value is used.
 
-    if value:
-        return value
+:type key: str
+:type default_value: str
+:return: str
+"""
 
-    return os.getenv(env_name, default_value)
+
+def get_env(key: str, default_value: str = "") -> str:
+    local_value = str(os.getenv(key, default_value))
+    remote_value = str(remote_environemnt_variable(key))
+    return remote_value if remote_value else local_value
 
 
-def remote_environemnt_variables(env_name: str) -> str:
-    session = boto3.session.Session()
-    env_group = "FASTAPI_ENVIRONMENT_VARIABLES"
+"""
+Retrieves env variable from AWS Secrets Manager.
 
-    client = session.client(region_name="us-east-1", service_name="secretsmanager")
+:type key: str
+:return: str
+"""
+
+
+def remote_environemnt_variable(key: str) -> str:
+    secret_id = os.getenv("AWS_SECRETS_MANAGER_SECRET_ID")
+
+    if not secret_id:
+        return ""
 
     try:
-        get_secret_value_response = client.get_secret_value(SecretId=env_group)
-    except (ClientError, NoCredentialsError) as error:
-        if isinstance(error, NoCredentialsError):
-            return ""
-        if error.response["Error"]["Code"] == "DecryptionFailureerror":
-            message = "DecryptionFailureerror to secret"
-            logger.error(f"{message} {env_group}: {error}")
-            return ""
-        elif error.response["Error"]["Code"] == "InternalServiceErrorerror":
-            message = "InternalServiceErrorerror to secret"
-            logger.error(f"{message} {env_group}: {error}")
-            return ""
-        elif error.response["Error"]["Code"] == "InvalidParametererror":
-            message = "InvalidParametererror to secret"
-            logger.error(f"{message} {env_group}: {error}")
-            return ""
-        elif error.response["Error"]["Code"] == "InvalidRequesterror":
-            message = "InvalidRequesterror to secret"
-            logger.error(f"{message} {env_group}: {error}")
-            return ""
-        elif error.response["Error"]["Code"] == "ResourceNotFounderror":
-            message = "ResourceNotFounderror to secret"
-            logger.error(f"{message} {env_group}: {error}")
-            return ""
-    else:
-        if "SecretString" in get_secret_value_response:
-            secret_string = get_secret_value_response["SecretString"]
-            secret_dictionary = json.loads(secret_string)
-            return secret_dictionary.get(env_name)
+        response = aws.secrets_manager.get_secret_value(SecretId=secret_id)
+    except (ClientError, NoCredentialsError, ParamValidationError) as error:
+        if isinstance(error, (NoCredentialsError, ParamValidationError)):
+            logger.debug("AWS Secrets Manager: %s", error)
         else:
-            secret_value = get_secret_value_response["SecretBinary"]
-            secret_decoded = base64.b64decode(secret_value)
-            secret_dictionary = json.loads(secret_decoded)
-            return secret_dictionary.get(env_name)
+            message = f"{error.response['Error']['Code']} to secret"
+            logger.error(f"{message} {secret_id}: {error}")
+
+        return ""
+
+    if "SecretString" in response:
+        secret_dictionary = json.loads(response["SecretString"])
+    else:
+        secret_dictionary = json.loads(b64decode(response["SecretBinary"]))
+
+    return secret_dictionary.get(key)

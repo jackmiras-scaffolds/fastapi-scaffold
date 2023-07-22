@@ -1,0 +1,33 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+psycopg = "*"
+sqlalchemy = {extras = ["asyncio"], version = "*"}
+alembic = "*"
+boto3 = "*"
+python-dotenv = "*"
+requests = "*"
+redis = {extras = ["hiredis"], version = "*"}
+pyjwt = "*"
+pydantic = {extras = ["email"], version = "*"}
+
+[dev-packages]
+bandit = "*"
+black = "*"
+factory-boy = "*"
+flake8-isort = "*"
+flake8 = "*"
+isort = "*"
+pytest = "*"
+httpx = "*"
+pytest-asyncio = "*"
+faker = "*"
+pytest-env = "*"
+
+[requires]
+python_version = "3.11"

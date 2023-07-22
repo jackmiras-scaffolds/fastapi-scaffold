@@ -1,0 +1,111 @@
+#!/bin/bash
+set -euo pipefail
+
+# Application service at docker-compose.yml
+readonly DOCKER_SERVICE_NAME="app"
+# Container name for app service at docker-compose.yml
+readonly DOCKER_SERVICE_CONTAINER_NAME="fastapi_scaffold"
+
+function helper_commands() {
+  if [[ "$1" = "python" ]]; then
+    # Run any python command inside the app container.
+    docker-compose -f _infra/docker-compose.yml exec "${DOCKER_SERVICE_NAME}" sh -c "$*"
+  fi
+
+  if [[ "$1" = "pytest" ]]; then
+    # Run an pytest command inside the app container.
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "$*"
+  fi
+
+  if [[ "$1" = "alembic" ]]; then
+    # Run an pytest command inside the app container.
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "$*"
+  fi
+
+  if [[ "$1" = "pipenv" ]]; then
+    # Run an pipenv command inside the app container.
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "$*"
+  fi
+}
+
+function docker_commands() {
+  if [[ "$1" = "up" ]]; then
+    docker-compose -f _infra/docker-compose.yml up
+  fi
+
+  if [[ "$1" = "down" ]]; then
+    docker-compose -f _infra/docker-compose.yml down
+  fi
+
+  if [[ "$1" = "build" ]]; then
+    docker build -f _infra/CI/Dockerfile -t fastapi-scaffold:latest . --no-cache
+  fi
+
+  if [[ "$1" = "bash" ]]; then
+    docker exec -it "${DOCKER_SERVICE_CONTAINER_NAME}" /bin/bash
+  fi
+
+  if [[ "$1" = "docker" ]]; then
+    # Run Docker command through this script.
+    "$@"
+  fi
+
+  if [[ "$1" = "clean-all" ]]; then
+    printf "INFO: Destroying docker-compose resources \n"
+    docker-compose -f _infra/docker-compose.yml down
+
+    printf "\nINFO: Killing any remaining containers \n"
+    docker kill "$(docker ps -a | grep -i "infra-${DOCKER_SERVICE_CONTAINER_NAME}" | awk '{print $1}')" || echo ""
+
+    printf "\nINFO: Removing image \n"
+    docker image rm -f "$(docker images | grep -i "infra-${DOCKER_SERVICE_CONTAINER_NAME}" | awk '{print $1}')"
+
+    printf "\nINFO: Removing volumes \n"
+    readonly VOLUMES=$(docker volume ls | grep -i "infra" | awk '{print $2}')
+    for volume in ${VOLUMES}; do
+      docker volume rm -f "${volume}"
+    done
+
+    printf "\nINFO: Listing running containers \n"
+    docker ps -a | grep -i "infra-${DOCKER_SERVICE_CONTAINER_NAME}" || echo ""
+
+    printf "\nINFO: Listing existing volumes \n"
+    docker volume ls | grep -i "infra"
+  fi
+
+  if [ "$1" = "docker-compose" ]; then
+    # Run docker-compose command through this script.
+    "$@"
+  fi
+}
+
+function continuous_integration() {
+  if [[ "$1" = "tests" ]]; then
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "bin/tests.sh"
+  fi
+
+  if [[ "$1" = "linters" ]]; then
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "bin/linters.sh"
+  fi
+
+  if [[ "$1" = "fix-linters" ]]; then
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "bin/fix-linters.sh"
+  fi
+
+  if [[ "$1" = "static-analysis" ]]; then
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "bin/static-analysis.sh"
+  fi
+
+  if [[ "$1" = "update-dependencies" ]]; then
+    docker-compose -f _infra/docker-compose.yml exec -T "${DOCKER_SERVICE_NAME}" sh -c "pipenv update"
+  fi
+}
+
+function main() {
+  helper_commands "$@"
+  docker_commands "$@"
+
+  continuous_integration "$@"
+}
+
+main "$@"

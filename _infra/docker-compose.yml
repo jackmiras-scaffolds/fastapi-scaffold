@@ -1,0 +1,68 @@
+---
+version: "3"
+services:
+  app:
+    build:
+      context: ../
+      dockerfile: _infra/CI/Dockerfile
+    container_name: fastapi_scaffold
+    command: >-
+      sh -c "
+        pipenv install --dev --system ;\
+        alembic upgrade head ;\
+        uvicorn server:app --reload --host 0.0.0.0 --port 8000"
+    ports:
+      - "8003:8000"
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+    volumes:
+      - ../:/.env:rw
+      - ../:/vessel:rw
+      - ../:/.pytest.ini:rw
+      - ../:/app:rw
+      - ../:/configs:rw
+      - ../:/database:rw
+      - ../:/routes:rw
+      - ../:/tests:rw
+    networks:
+      - app_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: fastapi_scaffold_db
+    ports:
+      - "5434:5432"
+    restart: "no"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=panopolis
+      - POSTGRES_USER=zosimos
+      - POSTGRES_PASSWORD=alchemy
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_scaffold_cache
+    env_file:
+      - ../.env
+    command: sh -c "redis-server --requirepass $$CACHE_PASSWORD"
+    ports:
+      - "6380:6379"
+    volumes:
+      - cache_data:/data
+    networks:
+      - app_network
+
+volumes:
+  db_data:
+    driver: "local"
+  cache_data:
+    driver: "local"
+
+networks:
+  app_network:
+    driver: "bridge"

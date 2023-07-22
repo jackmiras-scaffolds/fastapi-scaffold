@@ -1,10 +1,10 @@
-from typing import NoReturn
+from typing import Dict, NoReturn
 
+from configs.constants import Constants
 from fastapi.logger import logger
 
-from app.exceptions.application_exeception import ApplicationException
-from app.helpers.constants import Constants
-from app.models.pydantic.error import Error
+from app.exceptions.application_exception import ApplicationException
+from app.models.error import Error
 
 
 class RecordNotFound(ApplicationException):
@@ -20,11 +20,9 @@ class RecordNotFound(ApplicationException):
         message = f"{self.model} with {self.column} {self.value} not found"
         logger.exception(f"ERROR:    RecordNotFound ==> {message}")
 
-    def detail(self) -> str:
-        error = Error(
-            short_message="record_not_found",
-            message=f"{self.model} with {self.column} {self.value} not found",
-            help="Check your searching parameter and try again",
-        )
-
-        return error.dict()
+    def detail(self) -> Dict:
+        return Error(
+            short_message=self.__class__.__name__,
+            messages=[f"{self.model} with {self.column} {self.value} not found"],
+            help=["Check your searching parameter and try again"],
+        ).__dict__
